@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Trading Agent</title>
+  <style>
+    :root {
+      --bg:        #0d1117;
+      --bg2:       #161b22;
+      --bg3:       #1c2128;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+      --blue:      #58a6ff;
+      --purple:    #bc8cff;
+      --cyan:      #39d353;
+      --radius:    10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--blue);
+    }
+    header h1 span { color: var(--text); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    /* ── Status dot ── */
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+    .dot.red   { background: var(--red); }
+    .dot.grey  { background: var(--muted); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── Buttons ── */
+    button {
+      border: none; cursor: pointer;
+      border-radius: 6px; font-family: inherit;
+      font-size: 12px; font-weight: 600;
+      padding: 7px 16px; letter-spacing: 0.02em;
+      transition: opacity .15s, transform .1s;
+    }
+    button:hover { opacity: .85; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    .btn-start { background: var(--green); color: #000; }
+    .btn-stop  { background: var(--red);   color: #fff; }
+    .btn-disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+
+    /* ── Cards grid ── */
+    .grid-top {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media(max-width:900px){ .grid-top{ grid-template-columns: repeat(2,1fr); } }
+    @media(max-width:500px){ .grid-top{ grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .card-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .card-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Signal banner ── */
+    .signal-bar {
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .signal-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .signal-value { font-size: 26px; font-weight: 800; letter-spacing: .04em; }
+    .signal-reason { font-size: 11px; color: var(--muted); margin-top: 4px; max-width: 600px; }
+    .signal-confidence { text-align: right; }
+    .conf-label { font-size: 11px; color: var(--muted); }
+    .conf-bar-wrap { width: 120px; height: 8px; background: var(--bg3); border-radius: 4px; margin-top: 6px; }
+    .conf-bar { height: 100%; border-radius: 4px; transition: width .4s; }
+    .conf-val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+    /* ── Middle grid ── */
+    .grid-mid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media(max-width:700px){ .grid-mid{ grid-template-columns: 1fr; } }
+
+    /* ── Position card ── */
+    .pos-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      margin-top: 10px;
+    }
+    .pos-row { display: flex; flex-direction: column; }
+    .pos-row .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing:.05em; }
+    .pos-row .val { font-size: 14px; font-weight: 600; margin-top: 2px; }
+
+    /* ── Indicators card ── */
+    .ind-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ind-row:last-child { border-bottom: none; }
+    .ind-name { color: var(--muted); font-size: 11px; }
+    .ind-val  { font-weight: 700; font-size: 13px; }
+
+    /* ── Trade history ── */
+    .trade-list { margin-top: 10px; max-height: 260px; overflow-y: auto; }
+    .trade-item {
+      display: grid;
+      grid-template-columns: 60px 90px 110px 1fr 80px;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .trade-item:last-child { border-bottom: none; }
+    .trade-side { font-weight: 700; }
+    .trade-side.buy  { color: var(--green); }
+    .trade-side.sell { color: var(--red); }
+    .trade-pnl.pos { color: var(--green); }
+    .trade-pnl.neg { color: var(--red); }
+
+    /* ── Error log ── */
+    .err-item {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--red);
+    }
+    .err-item:last-child { border-bottom: none; }
+    .err-time { color: var(--muted); font-size: 10px; }
+
+    /* ── Config table ── */
+    .cfg-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .cfg-row:last-child { border-bottom: none; }
+    .cfg-key { color: var(--muted); }
+    .cfg-val { font-weight: 600; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 11px;
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+    }
+
+    /* ── Utility ── */
+    .green { color: var(--green); }
+    .red   { color: var(--red); }
+    .yellow{ color: var(--yellow); }
+    .blue  { color: var(--blue); }
+    .muted { color: var(--muted); }
+    .bold  { font-weight: 700; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .tag-paper { background: #1f2d3d; color: var(--blue); }
+    .tag-live  { background: #2d1f1f; color: var(--red); }
+    .tag-paper-sm, .tag-live-sm { font-size: 10px; padding: 1px 6px; }
+    .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+    .section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <h1>🤖 <span>AI</span> Trading Agent</h1>
+  <div class="header-right">
+    <span id="ws-dot" class="dot grey" title="WebSocket"></span>
+    <span id="ws-label" class="muted">Connecting…</span>
+    <button id="btn-start" class="btn-start" onclick="startAgent()">▶ Start Agent</button>
+    <button id="btn-stop"  class="btn-stop btn-disabled" onclick="stopAgent()">■ Stop</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── Top stat cards ── -->
+  <div class="grid-top">
+    <div class="card">
+      <div class="card-label">Live Price</div>
+      <div class="card-value" id="stat-price">—</div>
+      <div class="card-sub" id="stat-symbol">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Balance (USDT)</div>
+      <div class="card-value" id="stat-balance">—</div>
+      <div class="card-sub" id="stat-mode">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Daily P&amp;L</div>
+      <div class="card-value" id="stat-pnl">—</div>
+      <div class="card-sub" id="stat-trades">0 trades today</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Agent Status</div>
+      <div class="card-value" id="stat-status" style="font-size:18px">—</div>
+      <div class="card-sub" id="stat-iter">Iteration —</div>
+    </div>
+  </div>
+
+  <!-- ── Signal banner ── -->
+  <div class="signal-bar" id="signal-bar">
+    <div>
+      <div class="signal-label">LATEST SIGNAL</div>
+      <div class="signal-value" id="sig-value">HOLD</div>
+      <div class="signal-reason" id="sig-reason">Agent not started</div>
+    </div>
+    <div class="signal-confidence">
+      <div class="conf-label">CONFIDENCE</div>
+      <div class="conf-bar-wrap">
+        <div class="conf-bar" id="conf-bar" style="width:0%;background:var(--muted)"></div>
+      </div>
+      <div class="conf-val" id="conf-val">0%</div>
+    </div>
+  </div>
+
+  <!-- ── Middle: Position + Indicators ── -->
+  <div class="grid-mid">
+
+    <!-- Position -->
+    <div class="card">
+      <div class="section-title">Open Position</div>
+      <div id="pos-none" class="empty">No open position</div>
+      <div id="pos-open" style="display:none">
+        <div class="pos-grid">
+          <div class="pos-row"><span class="lbl">Entry Price</span><span class="val" id="pos-entry">—</span></div>
+          <div class="pos-row"><span class="lbl">Current Price</span><span class="val" id="pos-cur">—</span></div>
+          <div class="pos-row"><span class="lbl">Amount</span><span class="val" id="pos-amt">—</span></div>
+          <div class="pos-row"><span class="lbl">Value (USDT)</span><span class="val" id="pos-val">—</span></div>
+          <div class="pos-row"><span class="lbl">Stop Loss</span><span class="val red" id="pos-sl">—</span></div>
+          <div class="pos-row"><span class="lbl">Take Profit</span><span class="val green" id="pos-tp">—</span></div>
+          <div class="pos-row" style="grid-column:1/-1">
+            <span class="lbl">Unrealized P&amp;L</span>
+            <span class="val bold" id="pos-pnl">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicators -->
+    <div class="card">
+      <div class="section-title">Indicators</div>
+      <div class="ind-row"><span class="ind-name">RSI (14)</span><span class="ind-val" id="ind-rsi">—</span></div>
+      <div class="ind-row"><span class="ind-name">MACD Histogram</span><span class="ind-val" id="ind-macd">—</span></div>
+      <div class="ind-row"><span class="ind-name">EMA 20</span><span class="ind-val" id="ind-ema20">—</span></div>
+      <div class="ind-row"><span class="ind-name">BB %B</span><span class="ind-val" id="ind-bbpct">—</span></div>
+      <div class="ind-row"><span class="ind-name">Volume Ratio</span><span class="ind-val" id="ind-vol">—</span></div>
+      <div class="ind-row"><span class="ind-name">ATR (14)</span><span class="ind-val" id="ind-atr">—</span></div>
+      <div class="ind-row"><span class="ind-name">BB Upper</span><span class="ind-val" id="ind-bbu">—</span></div>
+      <div class="ind-row"><span class="ind-name">BB Lower</span><span class="ind-val" id="ind-bbl">—</span></div>
+    </div>
+  </div>
+
+  <!-- ── Bottom: Trade History + Config + Errors ── -->
+  <div class="grid-mid">
+
+    <!-- Trade History -->
+    <div class="card">
+      <div class="section-title">Trade History</div>
+      <div class="trade-list" id="trade-list">
+        <div class="empty">No trades yet</div>
+      </div>
+    </div>
+
+    <!-- Right column: Config + Errors -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <!-- Config -->
+      <div class="card">
+        <div class="section-title">Configuration</div>
+        <div id="cfg-block">
+          <div class="empty">Start the agent to see config</div>
+        </div>
+      </div>
+
+      <!-- Errors -->
+      <div class="card">
+        <div class="section-title">Error Log</div>
+        <div id="err-list">
+          <div class="empty">No errors</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer>AI Trading Agent — Spot Only &nbsp;|&nbsp; Last update: <span id="last-upd">—</span></footer>
+
+<script>
+  // ── WebSocket ───────────────────────────────────────────────────────────────
+  let ws;
+  let reconnectTimer;
+
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.onopen = () => {
+      document.getElementById('ws-dot').className   = 'dot green';
+      document.getElementById('ws-label').textContent = 'Connected';
+      clearTimeout(reconnectTimer);
+    };
+
+    ws.onmessage = (evt) => {
+      try { render(JSON.parse(evt.data)); } catch(e) {}
+    };
+
+    ws.onclose = () => {
+      document.getElementById('ws-dot').className   = 'dot red';
+      document.getElementById('ws-label').textContent = 'Reconnecting…';
+      reconnectTimer = setTimeout(connectWS, 3000);
+    };
+
+    ws.onerror = () => ws.close();
+  }
+
+  // ── API calls ───────────────────────────────────────────────────────────────
+  async function startAgent() {
+    try {
+      const r = await fetch('/api/start', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) alert('Error: ' + d.detail);
+    } catch(e) { alert('Request failed: ' + e); }
+  }
+
+  async function stopAgent() {
+    try {
+      const r = await fetch('/api/stop', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) alert('Error: ' + d.detail);
+    } catch(e) { alert('Request failed: ' + e); }
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  function fmt(n, dec=2, prefix='$') {
+    if (n === null || n === undefined || n === '') return '—';
+    return prefix + Number(n).toLocaleString(undefined, {minimumFractionDigits:dec, maximumFractionDigits:dec});
+  }
+  function fmtPct(n) { return n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`; }
+  function colorClass(n) { return n >= 0 ? 'green' : 'red'; }
+
+  function render(d) {
+    const running = d.running;
+    const cfg     = d.config || {};
+    const sig     = d.signal || {};
+    const mkt     = d.market || {};
+    const pos     = d.position || {};
+    const risk    = d.risk_stats || {};
+
+    // ── Buttons ──
+    const btnStart = document.getElementById('btn-start');
+    const btnStop  = document.getElementById('btn-stop');
+    if (running) {
+      btnStart.className = 'btn-start btn-disabled';
+      btnStop.className  = 'btn-stop';
+    } else {
+      btnStart.className = 'btn-start';
+      btnStop.className  = 'btn-stop btn-disabled';
+    }
+
+    // ── Top cards ──
+    const price = mkt.close || sig.price || 0;
+    document.getElementById('stat-price').textContent  = price ? '$' + Number(price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4}) : '—';
+    document.getElementById('stat-symbol').textContent = cfg.symbol ? `${cfg.symbol} · ${cfg.exchange?.toUpperCase()} · ${cfg.timeframe}` : '—';
+
+    const bal = cfg.mode === 'paper' ? d.paper_balance : d.balance_usdt;
+    document.getElementById('stat-balance').textContent = bal ? fmt(bal) : '—';
+    const modeTag = cfg.mode === 'live'
+      ? '<span class="tag tag-live">LIVE</span>'
+      : '<span class="tag tag-paper">PAPER</span>';
+    document.getElementById('stat-mode').innerHTML = cfg.mode ? modeTag : '—';
+
+    const pnl = d.daily_pnl || 0;
+    const pnlEl = document.getElementById('stat-pnl');
+    pnlEl.textContent  = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+    pnlEl.className    = 'card-value ' + colorClass(pnl);
+    document.getElementById('stat-trades').textContent = `${risk.trade_count_today || 0} trades today`;
+
+    const statusEl = document.getElementById('stat-status');
+    if (risk.kill_switch) {
+      statusEl.textContent  = '🚫 KILL SWITCH';
+      statusEl.className    = 'card-value red';
+    } else if (running) {
+      statusEl.innerHTML    = '<span class="dot green" style="vertical-align:middle;margin-right:6px"></span>Running';
+      statusEl.className    = 'card-value green';
+    } else {
+      statusEl.textContent  = '⏹ Stopped';
+      statusEl.className    = 'card-value muted';
+    }
+    document.getElementById('stat-iter').textContent = `Iteration ${d.iteration || 0}`;
+
+    // ── Signal banner ──
+    const sv   = sig.signal || 'HOLD';
+    const conf = sig.confidence || 0;
+    const sigEl = document.getElementById('sig-value');
+    sigEl.textContent = sv;
+    sigEl.className   = 'signal-value ' + (sv === 'BUY' ? 'green' : sv === 'SELL' ? 'red' : 'muted');
+    document.getElementById('sig-reason').textContent = sig.reason || '—';
+    document.getElementById('conf-val').textContent   = conf + '%';
+    const bar = document.getElementById('conf-bar');
+    bar.style.width      = conf + '%';
+    bar.style.background = sv === 'BUY' ? 'var(--green)' : sv === 'SELL' ? 'var(--red)' : 'var(--muted)';
+
+    // ── Position ──
+    const inPos = pos.in_position;
+    document.getElementById('pos-none').style.display = inPos ? 'none' : 'block';
+    document.getElementById('pos-open').style.display = inPos ? 'block' : 'none';
+    if (inPos) {
+      document.getElementById('pos-entry').textContent = fmt(pos.entry_price, 4);
+      document.getElementById('pos-cur').textContent   = fmt(pos.current_price, 4);
+      document.getElementById('pos-amt').textContent   = Number(pos.amount_base).toFixed(6) + ' ' + (cfg.symbol || '').split('/')[0];
+      document.getElementById('pos-val').textContent   = fmt(pos.amount_usdt, 2);
+      document.getElementById('pos-sl').textContent    = fmt(pos.stop_loss, 4);
+      document.getElementById('pos-tp').textContent    = fmt(pos.take_profit, 4);
+      const upnl    = pos.unrealized_pnl || 0;
+      const upnlPct = pos.pnl_pct || 0;
+      const pnlEl2  = document.getElementById('pos-pnl');
+      pnlEl2.textContent = `${upnl >= 0 ? '+$' : '-$'}${Math.abs(upnl).toFixed(4)} (${fmtPct(upnlPct)})`;
+      pnlEl2.className   = 'val bold ' + colorClass(upnl);
+    }
+
+    // ── Indicators ──
+    const rsi     = mkt.rsi;
+    const rsiEl   = document.getElementById('ind-rsi');
+    rsiEl.textContent = rsi ? rsi.toFixed(1) : '—';
+    rsiEl.className   = 'ind-val ' + (rsi > 70 ? 'red' : rsi < 30 ? 'green' : '');
+
+    const hist    = mkt.macd_hist;
+    const histEl  = document.getElementById('ind-macd');
+    histEl.textContent = hist !== undefined ? (hist >= 0 ? '+' : '') + hist.toFixed(6) : '—';
+    histEl.className   = 'ind-val ' + (hist >= 0 ? 'green' : 'red');
+
+    document.getElementById('ind-ema20').textContent  = mkt.ema20  ? fmt(mkt.ema20,  2) : '—';
+    document.getElementById('ind-bbpct').textContent  = mkt.bb_pct !== undefined ? mkt.bb_pct.toFixed(3) : '—';
+
+    const vr    = mkt.volume_ratio;
+    const vrEl  = document.getElementById('ind-vol');
+    vrEl.textContent = vr ? vr.toFixed(2) + 'x' : '—';
+    vrEl.className   = 'ind-val ' + (vr >= 1 ? 'green' : 'muted');
+
+    document.getElementById('ind-atr').textContent   = mkt.atr    ? fmt(mkt.atr,    4) : '—';
+    document.getElementById('ind-bbu').textContent   = mkt.bb_upper ? fmt(mkt.bb_upper, 2) : '—';
+    document.getElementById('ind-bbl').textContent   = mkt.bb_lower ? fmt(mkt.bb_lower, 2) : '—';
+
+    // ── Trade history ──
+    const trades  = (d.trade_history || []).slice().reverse();
+    const tradeEl = document.getElementById('trade-list');
+    if (!trades.length) {
+      tradeEl.innerHTML = '<div class="empty">No trades yet</div>';
+    } else {
+      tradeEl.innerHTML = trades.map(t => {
+        const pnlStr = t.pnl !== undefined
+          ? `<span class="trade-pnl ${t.pnl >= 0 ? 'pos' : 'neg'}">${t.pnl >= 0 ? '+$' : '-$'}${Math.abs(t.pnl).toFixed(2)}</span>`
+          : '<span class="muted">—</span>';
+        const modeTag = t.paper ? '<span class="tag tag-paper tag-paper-sm">P</span>' : '<span class="tag tag-live tag-live-sm">L</span>';
+        return `<div class="trade-item">
+          <span class="trade-side ${t.side.toLowerCase()}">${t.side}</span>
+          <span>$${Number(t.price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4})}</span>
+          <span class="muted">${Number(t.amount_base).toFixed(6)}</span>
+          <span class="muted" style="font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${(t.reason||'').slice(0,40)}</span>
+          ${pnlStr}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Config ──
+    const cfgEl = document.getElementById('cfg-block');
+    if (Object.keys(cfg).length) {
+      const rows = [
+        ['Exchange',    cfg.exchange?.toUpperCase()],
+        ['Symbol',      cfg.symbol],
+        ['Timeframe',   cfg.timeframe],
+        ['Mode',        cfg.mode?.toUpperCase()],
+        ['Per Trade',   cfg.trade_amount_usdt ? `$${cfg.trade_amount_usdt}` : '—'],
+        ['Stop Loss',   cfg.stop_loss_pct   ? (cfg.stop_loss_pct   * 100).toFixed(1) + '%' : '—'],
+        ['Take Profit', cfg.take_profit_pct ? (cfg.take_profit_pct * 100).toFixed(1) + '%' : '—'],
+        ['Loop Interval', cfg.loop_interval_s ? cfg.loop_interval_s + 's' : '—'],
+      ];
+      cfgEl.innerHTML = rows.map(([k,v]) =>
+        `<div class="cfg-row"><span class="cfg-key">${k}</span><span class="cfg-val">${v||'—'}</span></div>`
+      ).join('');
+    } else {
+      cfgEl.innerHTML = '<div class="empty">Start the agent to see config</div>';
+    }
+
+    // ── Error log ──
+    const errs  = (d.error_log || []).slice().reverse();
+    const errEl = document.getElementById('err-list');
+    if (!errs.length) {
+      errEl.innerHTML = '<div class="empty">No errors</div>';
+    } else {
+      errEl.innerHTML = errs.map(e =>
+        `<div class="err-item"><div class="err-time">${e.time?.slice(0,19) || ''}</div>${e.error}</div>`
+      ).join('');
+    }
+
+    // ── Footer ──
+    document.getElementById('last-upd').textContent = d.last_updated ? d.last_updated.slice(0,19) + ' UTC' : '—';
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  connectWS();
+
+  // Also poll REST as fallback
+  setInterval(async () => {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    try {
+      const r = await fetch('/api/status');
+      if (r.ok) render(await r.json());
+    } catch(e) {}
+  }, 5000);
+</script>
+</body>
+</html>
