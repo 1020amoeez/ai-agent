@@ -2,7 +2,7 @@
 execution/order_engine.py - Executes and monitors trades automatically.
 Coordinates between the exchange connector, risk manager, and notifier.
 """
-
+from __future__ import annotations
 import logging
 from datetime import datetime
 

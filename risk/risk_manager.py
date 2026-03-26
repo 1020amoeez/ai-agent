@@ -1,7 +1,7 @@
 """
 risk/risk_manager.py - Position sizing, daily P&L tracking, and kill switch.
 """
-
+from __future__ import annotations
 import logging
 from datetime import datetime, date
 

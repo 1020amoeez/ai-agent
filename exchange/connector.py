@@ -41,7 +41,11 @@ class ExchangeConnector:
         self._paper_order_counter = 1
 
         # Build ccxt exchange instance
-        exchange_class = getattr(ccxt, exchange_id, None)
+        # Handle Binance Testnet/Demo — uses the regular binance class but with sandbox mode
+        is_binance_testnet = (exchange_id == "binance_testnet")
+        ccxt_id = "binance" if is_binance_testnet else exchange_id
+
+        exchange_class = getattr(ccxt, ccxt_id, None)
         if exchange_class is None:
             raise ValueError(f"Exchange '{exchange_id}' is not supported by ccxt.")
 
@@ -51,6 +55,10 @@ class ExchangeConnector:
             "enableRateLimit": True,
             "options": {"defaultType": "spot"},
         })
+
+        if is_binance_testnet:
+            self._exchange.set_sandbox_mode(True)
+            logger.info("[TESTNET] Binance sandbox mode enabled — using testnet.binance.vision")
 
         if paper_mode:
             logger.info(f"[PAPER] Exchange connector initialized for '{exchange_id}' in paper trading mode.")

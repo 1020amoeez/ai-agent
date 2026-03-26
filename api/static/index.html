@@ -1,588 +1,705 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Trading Agent</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AI Trading Dashboard</title>
   <style>
     :root {
-      --bg:        #0d1117;
-      --bg2:       #161b22;
-      --bg3:       #1c2128;
-      --border:    #30363d;
-      --text:      #e6edf3;
-      --muted:     #8b949e;
-      --green:     #3fb950;
-      --red:       #f85149;
-      --yellow:    #d29922;
-      --blue:      #58a6ff;
-      --purple:    #bc8cff;
-      --cyan:      #39d353;
-      --radius:    10px;
+      --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--border:#30363d;
+      --text:#e6edf3;--muted:#8b949e;
+      --green:#3fb950;--red:#f85149;--yellow:#d29922;
+      --blue:#58a6ff;--purple:#bc8cff;--r:10px;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 13px;
-      min-height: 100vh;
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:13px;min-height:100vh}
+    header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .logo h1{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+    .logo-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:700}
+    .badge-c{background:#1a2d1a;color:var(--green)}.badge-f{background:#2d1f3d;color:var(--purple)}
+    .ws-row{display:flex;gap:14px}
+    .ws-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .dot.green{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+    .dot.red{background:var(--red)}.dot.grey{background:var(--muted)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .tabs{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;padding:0 24px}
+    .tab{padding:12px 20px;cursor:pointer;font-size:13px;font-weight:600;border-bottom:2px solid transparent;color:var(--muted);transition:all .2s;display:flex;align-items:center;gap:8px}
+    .tab:hover{color:var(--text)}
+    .tab.ac{color:var(--green);border-bottom-color:var(--green)}
+    .tab.af{color:var(--purple);border-bottom-color:var(--purple)}
+    .tdot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+    .tdot.rc{background:var(--green);box-shadow:0 0 5px var(--green);animation:pulse 2s infinite}
+    .tdot.rf{background:var(--purple);box-shadow:0 0 5px var(--purple);animation:pulse 2s infinite}
+    .panel{display:none;padding:20px 24px}.panel.active{display:block}
 
-    /* ── Top bar ── */
-    header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    header h1 {
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: var(--blue);
-    }
-    header h1 span { color: var(--text); }
-    .header-right { display: flex; align-items: center; gap: 12px; }
+    /* ── Credential form ── */
+    .cred-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:22px 24px;margin-bottom:16px}
+    .cred-title{font-size:13px;font-weight:700;margin-bottom:18px}
+    .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    @media(max-width:800px){.form-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.form-grid{grid-template-columns:1fr}}
+    .form-group{display:flex;flex-direction:column;gap:5px}
+    .form-group label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .form-group input,.form-group select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-family:inherit;font-size:12px;outline:none;transition:border-color .2s;width:100%}
+    .form-group input:focus,.form-group select:focus{border-color:var(--blue)}
+    .form-group input::placeholder{color:var(--muted)}
+    .form-group select option{background:var(--bg3)}
+    .mode-toggle{display:flex;gap:8px;margin-top:4px}
+    .mode-btn{flex:1;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:inherit;font-size:11px;font-weight:600;transition:all .2s;text-align:center}
+    .mode-btn.active-paper{border-color:var(--blue);color:var(--blue);background:#1a2535}
+    .mode-btn.active-live{border-color:var(--red);color:var(--red);background:#2a1a1a}
+    .form-actions{display:flex;align-items:center;gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+    .btn-launch{padding:10px 26px;border-radius:7px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s}
+    .btn-launch:hover{opacity:.85;transform:translateY(-1px)}
+    .btn-lc{background:var(--green);color:#000}.btn-lf{background:var(--purple);color:#fff}
+    .btn-stop-main{padding:10px 22px;border-radius:7px;border:none;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;transition:all .2s}
+    .btn-stop-main:hover{opacity:.85}
+    .warn-live{font-size:11px;color:var(--yellow);display:none;align-items:center;gap:5px}
+    .warn-live.show{display:flex}
+    .info-box{margin-top:12px;padding:10px 14px;background:var(--bg3);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.6}
 
-    /* ── Status dot ── */
-    .dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-    .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
-    .dot.red   { background: var(--red); }
-    .dot.grey  { background: var(--muted); }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-    /* ── Buttons ── */
-    button {
-      border: none; cursor: pointer;
-      border-radius: 6px; font-family: inherit;
-      font-size: 12px; font-weight: 600;
-      padding: 7px 16px; letter-spacing: 0.02em;
-      transition: opacity .15s, transform .1s;
-    }
-    button:hover { opacity: .85; transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-    .btn-start { background: var(--green); color: #000; }
-    .btn-stop  { background: var(--red);   color: #fff; }
-    .btn-disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
-
-    /* ── Layout ── */
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
-
-    /* ── Cards grid ── */
-    .grid-top {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    @media(max-width:900px){ .grid-top{ grid-template-columns: repeat(2,1fr); } }
-    @media(max-width:500px){ .grid-top{ grid-template-columns: 1fr; } }
-
-    .card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 18px;
-    }
-    .card-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .card-value {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--text);
-    }
-    .card-sub {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-
-    /* ── Signal banner ── */
-    .signal-bar {
-      border-radius: var(--radius);
-      padding: 14px 20px;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border: 1px solid var(--border);
-      background: var(--bg2);
-    }
-    .signal-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-    .signal-value { font-size: 26px; font-weight: 800; letter-spacing: .04em; }
-    .signal-reason { font-size: 11px; color: var(--muted); margin-top: 4px; max-width: 600px; }
-    .signal-confidence { text-align: right; }
-    .conf-label { font-size: 11px; color: var(--muted); }
-    .conf-bar-wrap { width: 120px; height: 8px; background: var(--bg3); border-radius: 4px; margin-top: 6px; }
-    .conf-bar { height: 100%; border-radius: 4px; transition: width .4s; }
-    .conf-val { font-size: 18px; font-weight: 700; margin-top: 4px; }
-
-    /* ── Middle grid ── */
-    .grid-mid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    @media(max-width:700px){ .grid-mid{ grid-template-columns: 1fr; } }
-
-    /* ── Position card ── */
-    .pos-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 16px;
-      margin-top: 10px;
-    }
-    .pos-row { display: flex; flex-direction: column; }
-    .pos-row .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing:.05em; }
-    .pos-row .val { font-size: 14px; font-weight: 600; margin-top: 2px; }
-
-    /* ── Indicators card ── */
-    .ind-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .ind-row:last-child { border-bottom: none; }
-    .ind-name { color: var(--muted); font-size: 11px; }
-    .ind-val  { font-weight: 700; font-size: 13px; }
-
-    /* ── Trade history ── */
-    .trade-list { margin-top: 10px; max-height: 260px; overflow-y: auto; }
-    .trade-item {
-      display: grid;
-      grid-template-columns: 60px 90px 110px 1fr 80px;
-      gap: 8px;
-      align-items: center;
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-    }
-    .trade-item:last-child { border-bottom: none; }
-    .trade-side { font-weight: 700; }
-    .trade-side.buy  { color: var(--green); }
-    .trade-side.sell { color: var(--red); }
-    .trade-pnl.pos { color: var(--green); }
-    .trade-pnl.neg { color: var(--red); }
-
-    /* ── Error log ── */
-    .err-item {
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--red);
-    }
-    .err-item:last-child { border-bottom: none; }
-    .err-time { color: var(--muted); font-size: 10px; }
-
-    /* ── Config table ── */
-    .cfg-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-    }
-    .cfg-row:last-child { border-bottom: none; }
-    .cfg-key { color: var(--muted); }
-    .cfg-val { font-weight: 600; }
-
-    /* ── Footer ── */
-    footer {
-      text-align: center;
-      padding: 20px;
-      color: var(--muted);
-      font-size: 11px;
-      border-top: 1px solid var(--border);
-      margin-top: 20px;
-    }
-
-    /* ── Utility ── */
-    .green { color: var(--green); }
-    .red   { color: var(--red); }
-    .yellow{ color: var(--yellow); }
-    .blue  { color: var(--blue); }
-    .muted { color: var(--muted); }
-    .bold  { font-weight: 700; }
-    .tag {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-    .tag-paper { background: #1f2d3d; color: var(--blue); }
-    .tag-live  { background: #2d1f1f; color: var(--red); }
-    .tag-paper-sm, .tag-live-sm { font-size: 10px; padding: 1px 6px; }
-    .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
-    .section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    /* Stats cards */
+    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+    @media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.grid4{grid-template-columns:1fr}}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+    @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+    .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
+    .clbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+    .cval{font-size:22px;font-weight:700}.csub{font-size:11px;color:var(--muted);margin-top:4px}
+    .sig-bar{border-radius:var(--r);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);background:var(--bg2)}
+    .sig-lbl{font-size:11px;color:var(--muted);margin-bottom:4px}
+    .sig-val{font-size:26px;font-weight:800;letter-spacing:.04em}
+    .sig-rsn{font-size:11px;color:var(--muted);margin-top:4px;max-width:580px}
+    .conf-wrap{width:120px;height:8px;background:var(--bg3);border-radius:4px;margin-top:6px}
+    .conf-fill{height:100%;border-radius:4px;transition:width .4s}
+    .conf-num{font-size:18px;font-weight:700;margin-top:4px;text-align:right}
+    .pos-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:10px}
+    .pos-row .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .pos-row .val{font-size:14px;font-weight:600;margin-top:2px}
+    .ind-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+    .ind-row:last-child{border-bottom:none}
+    .ind-name{color:var(--muted);font-size:11px}.ind-val{font-weight:700}
+    .trade-list{margin-top:10px;max-height:250px;overflow-y:auto}
+    .trade-item{display:grid;grid-template-columns:55px 100px 80px 1fr 72px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+    .trade-item:last-child{border-bottom:none}
+    .tside{font-weight:700}
+    .tside.buy,.tside.long{color:var(--green)}.tside.sell,.tside.short,.tside.close{color:var(--red)}
+    .tpnl.pos{color:var(--green)}.tpnl.neg{color:var(--red)}
+    .cfg-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+    .cfg-row:last-child{border-bottom:none}.cfg-key{color:var(--muted)}.cfg-val{font-weight:600}
+    .err-item{padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--red)}
+    .err-item:last-child{border-bottom:none}.err-time{color:var(--muted);font-size:10px}
+    footer{text-align:center;padding:20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border);margin-top:4px}
+    .green{color:var(--green)}.red{color:var(--red)}.yellow{color:var(--yellow)}
+    .purple{color:var(--purple)}.muted{color:var(--muted)}.bold{font-weight:700}
+    .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+    .tag-paper{background:#1f2d3d;color:var(--blue)}.tag-live{background:#2d1f1f;color:var(--red)}
+    .empty{color:var(--muted);font-style:italic;padding:12px 0}
+    .stitle{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+    .live-data{display:none}.live-data.show{display:block}
+    .stop-row{display:none;margin-bottom:16px;align-items:center;gap:12px}
+    .stop-row.show{display:flex}
   </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
 <header>
-  <h1>🤖 <span>AI</span> Trading Agent</h1>
-  <div class="header-right">
-    <span id="ws-dot" class="dot grey" title="WebSocket"></span>
-    <span id="ws-label" class="muted">Connecting…</span>
-    <button id="btn-start" class="btn-start" onclick="startAgent()">▶ Start Agent</button>
-    <button id="btn-stop"  class="btn-stop btn-disabled" onclick="stopAgent()">■ Stop</button>
+  <div class="logo">
+    <h1>🤖 AI Trading Dashboard
+      <span class="logo-badge badge-c">CRYPTO</span>
+      <span class="logo-badge badge-f">FOREX</span>
+    </h1>
+  </div>
+  <div class="ws-row">
+    <div class="ws-item"><span id="wdc" class="dot grey"></span><span id="wlc">Crypto WS</span></div>
+    <div class="ws-item"><span id="wdf" class="dot grey"></span><span id="wlf">Forex WS</span></div>
   </div>
 </header>
 
-<div class="container">
+<div class="tabs">
+  <div class="tab ac" id="tab-c" onclick="switchTab('c')">
+    <span class="tdot" id="tdot-c"></span>📈 Crypto Spot
+  </div>
+  <div class="tab" id="tab-f" onclick="switchTab('f')">
+    <span class="tdot" id="tdot-f"></span>💱 Forex · Exness MT5
+  </div>
+</div>
 
-  <!-- ── Top stat cards ── -->
-  <div class="grid-top">
-    <div class="card">
-      <div class="card-label">Live Price</div>
-      <div class="card-value" id="stat-price">—</div>
-      <div class="card-sub" id="stat-symbol">—</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Balance (USDT)</div>
-      <div class="card-value" id="stat-balance">—</div>
-      <div class="card-sub" id="stat-mode">—</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Daily P&amp;L</div>
-      <div class="card-value" id="stat-pnl">—</div>
-      <div class="card-sub" id="stat-trades">0 trades today</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Agent Status</div>
-      <div class="card-value" id="stat-status" style="font-size:18px">—</div>
-      <div class="card-sub" id="stat-iter">Iteration —</div>
-    </div>
+<!-- ═══════════ CRYPTO PANEL ═══════════ -->
+<div class="panel active" id="panel-c">
+
+  <!-- Error banner (shown when agent crashes on startup) -->
+  <div id="c-err-banner" style="display:none;background:#2d1a1a;border:1px solid #c0392b;border-radius:8px;padding:14px 18px;margin-bottom:14px;color:#e74c3c;font-size:0.9rem;">
+    <strong>⚠ Agent stopped with error:</strong>
+    <div id="c-err-banner-msg" style="margin-top:6px;font-family:monospace;word-break:break-word;"></div>
+    <button onclick="document.getElementById('c-err-banner').style.display='none'" style="margin-top:8px;background:#c0392b;border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem;">Dismiss</button>
   </div>
 
-  <!-- ── Signal banner ── -->
-  <div class="signal-bar" id="signal-bar">
-    <div>
-      <div class="signal-label">LATEST SIGNAL</div>
-      <div class="signal-value" id="sig-value">HOLD</div>
-      <div class="signal-reason" id="sig-reason">Agent not started</div>
-    </div>
-    <div class="signal-confidence">
-      <div class="conf-label">CONFIDENCE</div>
-      <div class="conf-bar-wrap">
-        <div class="conf-bar" id="conf-bar" style="width:0%;background:var(--muted)"></div>
+  <!-- Credentials + Config form -->
+  <div class="cred-card" id="c-form">
+    <div class="cred-title">🔑 Exchange Credentials &amp; Settings</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Exchange</label>
+        <select id="c-exchange">
+          <option value="mexc" selected>MEXC</option>
+          <option value="bybit">Bybit</option>
+          <option value="binance">Binance</option>
+          <option value="binance_testnet">Binance (Demo/Testnet)</option>
+          <option value="okx">OKX</option>
+          <option value="kucoin">KuCoin</option>
+          <option value="gateio">Gate.io</option>
+          <option value="kraken">Kraken</option>
+          <option value="bitget">Bitget</option>
+          <option value="coinbase">Coinbase</option>
+          <option value="huobi">Huobi</option>
+        </select>
       </div>
-      <div class="conf-val" id="conf-val">0%</div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="password" id="c-apikey" placeholder="Paste your API key" autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>API Secret</label>
+        <input type="password" id="c-apisecret" placeholder="Paste your API secret" autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Symbol</label>
+        <select id="c-symbol">
+          <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option>
+          <option>BNB/USDT</option><option>XRP/USDT</option><option>DOGE/USDT</option>
+          <option>ADA/USDT</option><option>AVAX/USDT</option><option>DOT/USDT</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timeframe</label>
+        <select id="c-tf">
+          <option>1m</option><option>3m</option><option selected>5m</option>
+          <option>15m</option><option>30m</option><option>1h</option>
+          <option>4h</option><option>1d</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Trade Amount (USDT)</label>
+        <input type="number" id="c-amount" value="50" min="5" step="5"/>
+      </div>
+      <div class="form-group">
+        <label>Stop Loss %</label>
+        <input type="number" id="c-sl" value="2" min="0.5" max="10" step="0.5"/>
+      </div>
+      <div class="form-group">
+        <label>Take Profit %</label>
+        <input type="number" id="c-tp" value="4" min="1" max="20" step="0.5"/>
+      </div>
+      <div class="form-group">
+        <label>Max Daily Loss %</label>
+        <input type="number" id="c-maxloss" value="5" min="1" max="20" step="1"/>
+      </div>
+      <div class="form-group">
+        <label>Telegram Bot Token <span class="muted">(optional)</span></label>
+        <input type="password" id="c-tg-token" placeholder="Leave blank to skip"/>
+      </div>
+      <div class="form-group">
+        <label>Telegram Chat ID <span class="muted">(optional)</span></label>
+        <input type="text" id="c-tg-chat" placeholder="e.g. 123456789"/>
+      </div>
+      <div class="form-group">
+        <label>Mode</label>
+        <div class="mode-toggle">
+          <div class="mode-btn active-paper" id="c-mode-paper" onclick="setMode('c','paper')">📋 Paper</div>
+          <div class="mode-btn" id="c-mode-live" onclick="setMode('c','live')">⚡ Live</div>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-launch btn-lc" onclick="startAgent('c')">▶ Start Crypto Agent</button>
+      <div class="warn-live" id="c-warn">⚠️ Live mode — real money will be traded</div>
     </div>
   </div>
 
-  <!-- ── Middle: Position + Indicators ── -->
-  <div class="grid-mid">
+  <!-- Running bar -->
+  <div class="stop-row" id="c-stop-row">
+    <button class="btn-stop-main" onclick="stopAgent('c')">■ Stop Crypto Agent</button>
+    <span id="c-run-lbl" style="font-size:12px"></span>
+  </div>
 
-    <!-- Position -->
-    <div class="card">
-      <div class="section-title">Open Position</div>
-      <div id="pos-none" class="empty">No open position</div>
-      <div id="pos-open" style="display:none">
-        <div class="pos-grid">
-          <div class="pos-row"><span class="lbl">Entry Price</span><span class="val" id="pos-entry">—</span></div>
-          <div class="pos-row"><span class="lbl">Current Price</span><span class="val" id="pos-cur">—</span></div>
-          <div class="pos-row"><span class="lbl">Amount</span><span class="val" id="pos-amt">—</span></div>
-          <div class="pos-row"><span class="lbl">Value (USDT)</span><span class="val" id="pos-val">—</span></div>
-          <div class="pos-row"><span class="lbl">Stop Loss</span><span class="val red" id="pos-sl">—</span></div>
-          <div class="pos-row"><span class="lbl">Take Profit</span><span class="val green" id="pos-tp">—</span></div>
-          <div class="pos-row" style="grid-column:1/-1">
-            <span class="lbl">Unrealized P&amp;L</span>
-            <span class="val bold" id="pos-pnl">—</span>
+  <!-- Live data -->
+  <div class="live-data" id="c-live">
+    <div class="grid4">
+      <div class="card"><div class="clbl">Live Price</div><div class="cval" id="c-price">—</div><div class="csub" id="c-sym-lbl">—</div></div>
+      <div class="card"><div class="clbl">Balance (USDT)</div><div class="cval" id="c-balance">—</div><div class="csub" id="c-mode-lbl">—</div></div>
+      <div class="card"><div class="clbl">Daily P&amp;L</div><div class="cval" id="c-pnl">—</div><div class="csub" id="c-trades-lbl">0 trades</div></div>
+      <div class="card"><div class="clbl">Status</div><div class="cval" id="c-status" style="font-size:17px">—</div><div class="csub" id="c-iter">Iteration —</div></div>
+    </div>
+    <div class="sig-bar">
+      <div>
+        <div class="sig-lbl">LATEST SIGNAL</div>
+        <div class="sig-val" id="c-sig-val">HOLD</div>
+        <div class="sig-rsn" id="c-sig-rsn">—</div>
+      </div>
+      <div>
+        <div class="sig-lbl" style="text-align:right">CONFIDENCE</div>
+        <div class="conf-wrap"><div class="conf-fill" id="c-conf-fill" style="width:0%"></div></div>
+        <div class="conf-num" id="c-conf-num">0%</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="stitle">Open Position</div>
+        <div id="c-pos-none" class="empty">No open position</div>
+        <div id="c-pos-open" style="display:none">
+          <div class="pos-grid">
+            <div class="pos-row"><span class="lbl">Entry Price</span><span class="val" id="c-p-entry">—</span></div>
+            <div class="pos-row"><span class="lbl">Current Price</span><span class="val" id="c-p-cur">—</span></div>
+            <div class="pos-row"><span class="lbl">Amount</span><span class="val" id="c-p-amt">—</span></div>
+            <div class="pos-row"><span class="lbl">Value (USDT)</span><span class="val" id="c-p-val">—</span></div>
+            <div class="pos-row"><span class="lbl">Stop Loss</span><span class="val red" id="c-p-sl">—</span></div>
+            <div class="pos-row"><span class="lbl">Take Profit</span><span class="val green" id="c-p-tp">—</span></div>
+            <div class="pos-row" style="grid-column:1/-1"><span class="lbl">Unrealized P&amp;L</span><span class="val bold" id="c-p-pnl">—</span></div>
           </div>
         </div>
       </div>
+      <div class="card">
+        <div class="stitle">Indicators</div>
+        <div class="ind-row"><span class="ind-name">RSI (14)</span><span class="ind-val" id="c-rsi">—</span></div>
+        <div class="ind-row"><span class="ind-name">MACD Histogram</span><span class="ind-val" id="c-macd">—</span></div>
+        <div class="ind-row"><span class="ind-name">EMA 20</span><span class="ind-val" id="c-ema20">—</span></div>
+        <div class="ind-row"><span class="ind-name">BB %B</span><span class="ind-val" id="c-bbpct">—</span></div>
+        <div class="ind-row"><span class="ind-name">Volume Ratio</span><span class="ind-val" id="c-vol">—</span></div>
+        <div class="ind-row"><span class="ind-name">ATR (14)</span><span class="ind-val" id="c-atr">—</span></div>
+        <div class="ind-row"><span class="ind-name">BB Upper</span><span class="ind-val" id="c-bbu">—</span></div>
+        <div class="ind-row"><span class="ind-name">BB Lower</span><span class="ind-val" id="c-bbl">—</span></div>
+      </div>
     </div>
-
-    <!-- Indicators -->
-    <div class="card">
-      <div class="section-title">Indicators</div>
-      <div class="ind-row"><span class="ind-name">RSI (14)</span><span class="ind-val" id="ind-rsi">—</span></div>
-      <div class="ind-row"><span class="ind-name">MACD Histogram</span><span class="ind-val" id="ind-macd">—</span></div>
-      <div class="ind-row"><span class="ind-name">EMA 20</span><span class="ind-val" id="ind-ema20">—</span></div>
-      <div class="ind-row"><span class="ind-name">BB %B</span><span class="ind-val" id="ind-bbpct">—</span></div>
-      <div class="ind-row"><span class="ind-name">Volume Ratio</span><span class="ind-val" id="ind-vol">—</span></div>
-      <div class="ind-row"><span class="ind-name">ATR (14)</span><span class="ind-val" id="ind-atr">—</span></div>
-      <div class="ind-row"><span class="ind-name">BB Upper</span><span class="ind-val" id="ind-bbu">—</span></div>
-      <div class="ind-row"><span class="ind-name">BB Lower</span><span class="ind-val" id="ind-bbl">—</span></div>
+    <div class="grid2">
+      <div class="card"><div class="stitle">Trade History</div><div class="trade-list" id="c-trades-list"><div class="empty">No trades yet</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="stitle">Active Config</div><div id="c-cfg"><div class="empty">—</div></div></div>
+        <div class="card"><div class="stitle">Error Log</div><div id="c-errors"><div class="empty">No errors</div></div></div>
+      </div>
     </div>
   </div>
-
-  <!-- ── Bottom: Trade History + Config + Errors ── -->
-  <div class="grid-mid">
-
-    <!-- Trade History -->
-    <div class="card">
-      <div class="section-title">Trade History</div>
-      <div class="trade-list" id="trade-list">
-        <div class="empty">No trades yet</div>
-      </div>
-    </div>
-
-    <!-- Right column: Config + Errors -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      <!-- Config -->
-      <div class="card">
-        <div class="section-title">Configuration</div>
-        <div id="cfg-block">
-          <div class="empty">Start the agent to see config</div>
-        </div>
-      </div>
-
-      <!-- Errors -->
-      <div class="card">
-        <div class="section-title">Error Log</div>
-        <div id="err-list">
-          <div class="empty">No errors</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
 </div>
 
-<footer>AI Trading Agent — Spot Only &nbsp;|&nbsp; Last update: <span id="last-upd">—</span></footer>
+<!-- ═══════════ FOREX PANEL ═══════════ -->
+<div class="panel" id="panel-f">
+
+  <!-- Error banner -->
+  <div id="f-err-banner" style="display:none;background:#2d1a1a;border:1px solid #c0392b;border-radius:8px;padding:14px 18px;margin-bottom:14px;color:#e74c3c;font-size:0.9rem;">
+    <strong>⚠ Agent stopped with error:</strong>
+    <div id="f-err-banner-msg" style="margin-top:6px;font-family:monospace;word-break:break-word;"></div>
+    <button onclick="document.getElementById('f-err-banner').style.display='none'" style="margin-top:8px;background:#c0392b;border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem;">Dismiss</button>
+  </div>
+
+  <div class="cred-card" id="f-form">
+    <div class="cred-title">🔑 Exness MT5 Credentials &amp; Settings</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>MT5 Account Number</label>
+        <input type="text" id="f-login" placeholder="e.g. 12345678" autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>MT5 Password</label>
+        <input type="password" id="f-password" placeholder="Your MT5 password" autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>MT5 Server</label>
+        <select id="f-server">
+          <option value="Exness-MT5Real">Exness-MT5Real</option>
+          <option value="Exness-MT5Real2">Exness-MT5Real2</option>
+          <option value="Exness-MT5Trial">Exness-MT5Trial (Demo)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Symbol (Pair)</label>
+        <select id="f-symbol">
+          <option>EURUSDm</option><option>GBPUSDm</option><option>USDJPYm</option>
+          <option>USDCHFm</option><option>AUDUSDm</option><option>NZDUSDm</option>
+          <option>USDCADm</option><option>XAUUSDm</option><option>XAGUSDm</option>
+          <option>EURUSD</option><option>GBPUSD</option><option>XAUUSD</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timeframe</label>
+        <select id="f-tf">
+          <option>M1</option><option>M5</option><option selected>M15</option>
+          <option>M30</option><option>H1</option><option>H4</option><option>D1</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Lot Size</label>
+        <input type="number" id="f-lot" value="0.01" min="0.01" max="100" step="0.01"/>
+      </div>
+      <div class="form-group">
+        <label>Stop Loss (pips)</label>
+        <input type="number" id="f-sl" value="30" min="5" max="200" step="5"/>
+      </div>
+      <div class="form-group">
+        <label>Take Profit (pips)</label>
+        <input type="number" id="f-tp" value="60" min="10" max="500" step="5"/>
+      </div>
+      <div class="form-group">
+        <label>Max Daily Loss (USD)</label>
+        <input type="number" id="f-maxloss" value="20" min="5" step="5"/>
+      </div>
+      <div class="form-group">
+        <label>Telegram Bot Token <span class="muted">(optional)</span></label>
+        <input type="password" id="f-tg-token" placeholder="Leave blank to skip"/>
+      </div>
+      <div class="form-group">
+        <label>Telegram Chat ID <span class="muted">(optional)</span></label>
+        <input type="text" id="f-tg-chat" placeholder="e.g. 123456789"/>
+      </div>
+      <div class="form-group">
+        <label>Mode</label>
+        <div class="mode-toggle">
+          <div class="mode-btn active-paper" id="f-mode-paper" onclick="setMode('f','paper')">📋 Paper</div>
+          <div class="mode-btn" id="f-mode-live" onclick="setMode('f','live')">⚡ Live</div>
+        </div>
+      </div>
+    </div>
+    <div class="info-box">
+      💡 <b>Where to find your MT5 credentials?</b><br>
+      Log in to <b>exness.com</b> → My Accounts → click your MT5 account → copy the <b>Account Number</b> and <b>Server</b> name. The password is the one you set when creating the account. If forgotten, click <b>Change Password</b> in your Exness dashboard.
+    </div>
+    <div class="form-actions">
+      <button class="btn-launch btn-lf" onclick="startAgent('f')">▶ Start Forex Agent</button>
+      <div class="warn-live" id="f-warn">⚠️ Live mode — real trades on your Exness account</div>
+    </div>
+  </div>
+
+  <!-- Running bar -->
+  <div class="stop-row" id="f-stop-row">
+    <button class="btn-stop-main" onclick="stopAgent('f')">■ Stop Forex Agent</button>
+    <span id="f-run-lbl" style="font-size:12px"></span>
+  </div>
+
+  <!-- Live data -->
+  <div class="live-data" id="f-live">
+    <div class="grid4">
+      <div class="card"><div class="clbl">Live Price</div><div class="cval" id="f-price">—</div><div class="csub" id="f-sym-lbl">—</div></div>
+      <div class="card"><div class="clbl">Account Balance</div><div class="cval" id="f-balance">—</div><div class="csub" id="f-equity">Equity: —</div></div>
+      <div class="card"><div class="clbl">Daily P&amp;L</div><div class="cval" id="f-pnl">—</div><div class="csub" id="f-trades-lbl">0 trades</div></div>
+      <div class="card"><div class="clbl">Status</div><div class="cval" id="f-status" style="font-size:17px">—</div><div class="csub" id="f-iter">Iteration —</div></div>
+    </div>
+    <div class="sig-bar">
+      <div>
+        <div class="sig-lbl">LATEST SIGNAL</div>
+        <div class="sig-val" id="f-sig-val">HOLD</div>
+        <div class="sig-rsn" id="f-sig-rsn">—</div>
+      </div>
+      <div>
+        <div class="sig-lbl" style="text-align:right">CONFIDENCE</div>
+        <div class="conf-wrap"><div class="conf-fill" id="f-conf-fill" style="width:0%"></div></div>
+        <div class="conf-num" id="f-conf-num">0%</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="stitle">Open Position</div>
+        <div id="f-pos-none" class="empty">No open position</div>
+        <div id="f-pos-open" style="display:none">
+          <div class="pos-grid">
+            <div class="pos-row"><span class="lbl">Direction</span><span class="val bold" id="f-p-side">—</span></div>
+            <div class="pos-row"><span class="lbl">Lot Size</span><span class="val" id="f-p-lot">—</span></div>
+            <div class="pos-row"><span class="lbl">Entry Price</span><span class="val" id="f-p-entry">—</span></div>
+            <div class="pos-row"><span class="lbl">Current Price</span><span class="val" id="f-p-cur">—</span></div>
+            <div class="pos-row"><span class="lbl">Stop Loss</span><span class="val red" id="f-p-sl">—</span></div>
+            <div class="pos-row"><span class="lbl">Take Profit</span><span class="val green" id="f-p-tp">—</span></div>
+            <div class="pos-row" style="grid-column:1/-1"><span class="lbl">Unrealized P&amp;L</span><span class="val bold" id="f-p-pnl">—</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="stitle">Indicators</div>
+        <div class="ind-row"><span class="ind-name">RSI (14)</span><span class="ind-val" id="f-rsi">—</span></div>
+        <div class="ind-row"><span class="ind-name">MACD Histogram</span><span class="ind-val" id="f-macd">—</span></div>
+        <div class="ind-row"><span class="ind-name">EMA 20</span><span class="ind-val" id="f-ema20">—</span></div>
+        <div class="ind-row"><span class="ind-name">EMA 200</span><span class="ind-val" id="f-ema200">—</span></div>
+        <div class="ind-row"><span class="ind-name">Stochastic K</span><span class="ind-val" id="f-stoch">—</span></div>
+        <div class="ind-row"><span class="ind-name">ATR (14)</span><span class="ind-val" id="f-atr">—</span></div>
+        <div class="ind-row"><span class="ind-name">BB %B</span><span class="ind-val" id="f-bbpct">—</span></div>
+        <div class="ind-row"><span class="ind-name">Volume Ratio</span><span class="ind-val" id="f-vol">—</span></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="stitle">Trade History</div><div class="trade-list" id="f-trades-list"><div class="empty">No trades yet</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="stitle">Active Config</div><div id="f-cfg"><div class="empty">—</div></div></div>
+        <div class="card"><div class="stitle">Error Log</div><div id="f-errors"><div class="empty">No errors</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>AI Trading Dashboard · Crypto + Forex &nbsp;|&nbsp; Crypto: <span id="c-upd">—</span> &nbsp;·&nbsp; Forex: <span id="f-upd">—</span></footer>
 
 <script>
-  // ── WebSocket ───────────────────────────────────────────────────────────────
-  let ws;
-  let reconnectTimer;
+const modes={c:'paper',f:'paper'};
 
-  function connectWS() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}/ws`);
+function setMode(p,m){
+  modes[p]=m;
+  document.getElementById(`${p}-mode-paper`).className='mode-btn'+(m==='paper'?' active-paper':'');
+  document.getElementById(`${p}-mode-live`).className ='mode-btn'+(m==='live'?' active-live':'');
+  const w=document.getElementById(`${p}-warn`);
+  if(w) w.classList.toggle('show',m==='live');
+}
 
-    ws.onopen = () => {
-      document.getElementById('ws-dot').className   = 'dot green';
-      document.getElementById('ws-label').textContent = 'Connected';
-      clearTimeout(reconnectTimer);
+function switchTab(t){
+  ['c','f'].forEach(x=>{
+    document.getElementById('panel-'+x).classList.toggle('active',x===t);
+    document.getElementById('tab-'+x).className='tab'+(x===t?' a'+x:'');
+  });
+}
+
+function showRunning(p,running){
+  document.getElementById(`${p}-form`).style.display     =running?'none':'block';
+  document.getElementById(`${p}-stop-row`).classList.toggle('show',running);
+  document.getElementById(`${p}-live`).classList.toggle('show',running);
+}
+
+let wsC,wsF,rcC,rcF;
+const proto=location.protocol==='https:'?'wss':'ws';
+
+function connectC(){
+  wsC=new WebSocket(`${proto}://${location.host}/ws/crypto`);
+  wsC.onopen=()=>{setWS('c','green','Crypto ✓');clearTimeout(rcC);};
+  wsC.onmessage=e=>{try{renderC(JSON.parse(e.data));}catch(_){}};
+  wsC.onclose=()=>{setWS('c','red','Crypto…');rcC=setTimeout(connectC,3000);};
+  wsC.onerror=()=>wsC.close();
+}
+function connectF(){
+  wsF=new WebSocket(`${proto}://${location.host}/ws/forex`);
+  wsF.onopen=()=>{setWS('f','green','Forex ✓');clearTimeout(rcF);};
+  wsF.onmessage=e=>{try{renderF(JSON.parse(e.data));}catch(_){}};
+  wsF.onclose=()=>{setWS('f','red','Forex…');rcF=setTimeout(connectF,3000);};
+  wsF.onerror=()=>wsF.close();
+}
+function setWS(p,c,t){document.getElementById('wd'+p).className='dot '+c;document.getElementById('wl'+p).textContent=t;}
+
+async function startAgent(p){
+  let body;
+  if(p==='c'){
+    body={
+      exchange:           document.getElementById('c-exchange').value,
+      api_key:            document.getElementById('c-apikey').value.trim(),
+      api_secret:         document.getElementById('c-apisecret').value.trim(),
+      symbol:             document.getElementById('c-symbol').value,
+      timeframe:          document.getElementById('c-tf').value,
+      trade_amount_usdt:  parseFloat(document.getElementById('c-amount').value)||50,
+      stop_loss_pct:      parseFloat(document.getElementById('c-sl').value)/100||0.02,
+      take_profit_pct:    parseFloat(document.getElementById('c-tp').value)/100||0.04,
+      max_daily_loss_pct: parseFloat(document.getElementById('c-maxloss').value)/100||0.05,
+      trading_mode:       modes.c,
+      telegram_token:     document.getElementById('c-tg-token').value.trim(),
+      telegram_chat_id:   document.getElementById('c-tg-chat').value.trim(),
     };
-
-    ws.onmessage = (evt) => {
-      try { render(JSON.parse(evt.data)); } catch(e) {}
+  } else {
+    body={
+      mt5_login:        document.getElementById('f-login').value.trim(),
+      mt5_password:     document.getElementById('f-password').value,
+      mt5_server:       document.getElementById('f-server').value,
+      symbol:           document.getElementById('f-symbol').value,
+      timeframe:        document.getElementById('f-tf').value,
+      lot_size:         parseFloat(document.getElementById('f-lot').value)||0.01,
+      stop_loss_pips:   parseInt(document.getElementById('f-sl').value)||30,
+      take_profit_pips: parseInt(document.getElementById('f-tp').value)||60,
+      max_daily_loss:   parseFloat(document.getElementById('f-maxloss').value)||20,
+      trading_mode:     modes.f,
+      telegram_token:   document.getElementById('f-tg-token').value.trim(),
+      telegram_chat_id: document.getElementById('f-tg-chat').value.trim(),
     };
-
-    ws.onclose = () => {
-      document.getElementById('ws-dot').className   = 'dot red';
-      document.getElementById('ws-label').textContent = 'Reconnecting…';
-      reconnectTimer = setTimeout(connectWS, 3000);
-    };
-
-    ws.onerror = () => ws.close();
   }
+  const type=p==='c'?'crypto':'forex';
+  try{
+    const r=await fetch(`/api/${type}/start`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){alert('Error: '+d.detail);return;}
+    showRunning(p,true);
+  }catch(e){alert('Request failed: '+e);}
+}
 
-  // ── API calls ───────────────────────────────────────────────────────────────
-  async function startAgent() {
-    try {
-      const r = await fetch('/api/start', { method: 'POST' });
-      const d = await r.json();
-      if (!r.ok) alert('Error: ' + d.detail);
-    } catch(e) { alert('Request failed: ' + e); }
+async function stopAgent(p){
+  const type=p==='c'?'crypto':'forex';
+  const r=await fetch(`/api/${type}/stop`,{method:'POST'});
+  const d=await r.json();
+  if(!r.ok) alert('Error: '+d.detail);
+}
+
+const f2=n=>n!=null?'$'+Number(n).toFixed(2):'—';
+const f4=n=>n!=null?'$'+Number(n).toFixed(4):'—';
+const f5=n=>n!=null?Number(n).toFixed(5):'—';
+const cc=n=>n>=0?'green':'red';
+const sgc=s=>({'BUY':'green','SELL':'red','HOLD':'muted'})[s]||'muted';
+
+function renderSig(p,sig){
+  const sv=sig.signal||'HOLD',conf=sig.confidence||0;
+  const el=document.getElementById(`${p}-sig-val`);
+  el.textContent=sv;el.className='sig-val '+sgc(sv);
+  document.getElementById(`${p}-sig-rsn`).textContent=sig.reason||'—';
+  document.getElementById(`${p}-conf-num`).textContent=conf+'%';
+  const f=document.getElementById(`${p}-conf-fill`);
+  f.style.width=conf+'%';
+  f.style.background=sv==='BUY'?'var(--green)':sv==='SELL'?'var(--red)':'var(--muted)';
+}
+
+function renderSt(p,running,risk,iter){
+  const el=document.getElementById(`${p}-status`);
+  if(risk.kill_switch){el.textContent='🚫 KILL SWITCH';el.className='cval red';}
+  else if(running){el.innerHTML='<span class="dot green" style="vertical-align:middle;margin-right:6px"></span>Running';el.className='cval green';}
+  else{el.textContent='⏹ Stopped';el.className='cval muted';}
+  document.getElementById(`${p}-iter`).textContent=`Iteration ${iter||0}`;
+}
+
+function renderTrades(id,trades){
+  const el=document.getElementById(id);
+  const list=(trades||[]).slice().reverse();
+  if(!list.length){el.innerHTML='<div class="empty">No trades yet</div>';return;}
+  el.innerHTML=list.map(t=>{
+    const sc=t.side.toLowerCase();
+    const pr=t.price>10?'$'+Number(t.price).toFixed(2):Number(t.price).toFixed(5);
+    const lt=t.lot!=null?`lot ${t.lot}`:(t.amount_base?Number(t.amount_base).toFixed(5):'—');
+    const ps=t.pnl!=null?`<span class="tpnl ${t.pnl>=0?'pos':'neg'}">${t.pnl>=0?'+$':'-$'}${Math.abs(t.pnl).toFixed(2)}</span>`:'<span class="muted">—</span>';
+    return `<div class="trade-item"><span class="tside ${sc}">${t.side}</span><span>${pr}</span><span class="muted">${lt}</span><span class="muted" style="font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${(t.reason||'').slice(0,35)}</span>${ps}</div>`;
+  }).join('');
+}
+
+function renderCfg(id,cfg,rows){
+  const el=document.getElementById(id);
+  if(!Object.keys(cfg||{}).length){el.innerHTML='<div class="empty">—</div>';return;}
+  el.innerHTML=rows.map(([k,v])=>`<div class="cfg-row"><span class="cfg-key">${k}</span><span class="cfg-val">${v||'—'}</span></div>`).join('');
+}
+
+function renderErrs(id,errs){
+  const el=document.getElementById(id);
+  const list=(errs||[]).slice().reverse();
+  el.innerHTML=list.length?list.map(e=>`<div class="err-item"><div class="err-time">${(e.time||'').slice(0,19)}</div>${e.error}</div>`).join(''):'<div class="empty">No errors</div>';
+}
+
+function showErrBanner(p,running,errLog){
+  const banner=document.getElementById(`${p}-err-banner`);
+  const msg=document.getElementById(`${p}-err-banner-msg`);
+  if(!banner)return;
+  const errs=errLog||[];
+  if(!running&&errs.length){
+    const last=errs[errs.length-1];
+    msg.textContent=last.error||'Unknown error';
+    banner.style.display='block';
+  } else if(running){
+    banner.style.display='none';
   }
+}
 
-  async function stopAgent() {
-    try {
-      const r = await fetch('/api/stop', { method: 'POST' });
-      const d = await r.json();
-      if (!r.ok) alert('Error: ' + d.detail);
-    } catch(e) { alert('Request failed: ' + e); }
+function renderC(d){
+  const running=d.running,cfg=d.config||{},sig=d.signal||{};
+  const mkt=d.market||{},pos=d.position||{},risk=d.risk_stats||{};
+  document.getElementById('tdot-c').className='tdot'+(running?' rc':'');
+  showRunning('c',running);
+  showErrBanner('c',running,d.error_log);
+  if(running){
+    const l=document.getElementById('c-run-lbl');
+    l.innerHTML=`<span class="tag ${cfg.mode==='live'?'tag-live':'tag-paper'}">${(cfg.mode||'').toUpperCase()}</span> &nbsp;${cfg.exchange?.toUpperCase()||''} · ${cfg.symbol||''} · ${cfg.timeframe||''}`;
   }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
-  function fmt(n, dec=2, prefix='$') {
-    if (n === null || n === undefined || n === '') return '—';
-    return prefix + Number(n).toLocaleString(undefined, {minimumFractionDigits:dec, maximumFractionDigits:dec});
+  const price=mkt.close||sig.price||0;
+  document.getElementById('c-price').textContent   =price?'$'+Number(price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4}):'—';
+  document.getElementById('c-sym-lbl').textContent =cfg.symbol?`${cfg.symbol} · ${cfg.exchange?.toUpperCase()}`:'—';
+  const bal=cfg.mode==='paper'?d.paper_balance:d.balance_usdt;
+  document.getElementById('c-balance').textContent =bal?f2(bal):'—';
+  document.getElementById('c-mode-lbl').textContent=cfg.mode?(cfg.mode==='paper'?'Paper mode':'Live mode'):'—';
+  const pnl=d.daily_pnl||0;
+  const pEl=document.getElementById('c-pnl');
+  pEl.textContent=(pnl>=0?'+$':'-$')+Math.abs(pnl).toFixed(2);pEl.className='cval '+cc(pnl);
+  document.getElementById('c-trades-lbl').textContent=`${risk.trade_count_today||0} trades today`;
+  renderSt('c',running,risk,d.iteration);renderSig('c',sig);
+  const inPos=pos.in_position;
+  document.getElementById('c-pos-none').style.display=inPos?'none':'block';
+  document.getElementById('c-pos-open').style.display=inPos?'block':'none';
+  if(inPos){
+    document.getElementById('c-p-entry').textContent=f4(pos.entry_price);
+    document.getElementById('c-p-cur').textContent  =f4(pos.current_price);
+    document.getElementById('c-p-amt').textContent  =Number(pos.amount_base||0).toFixed(6)+' '+(cfg.symbol||'').split('/')[0];
+    document.getElementById('c-p-val').textContent  =f2(pos.amount_usdt);
+    document.getElementById('c-p-sl').textContent   =f4(pos.stop_loss);
+    document.getElementById('c-p-tp').textContent   =f4(pos.take_profit);
+    const u=pos.unrealized_pnl||0;
+    const uEl=document.getElementById('c-p-pnl');
+    uEl.textContent=(u>=0?'+$':'-$')+Math.abs(u).toFixed(4)+' ('+(pos.pnl_pct||0).toFixed(2)+'%)';
+    uEl.className='val bold '+cc(u);
   }
-  function fmtPct(n) { return n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`; }
-  function colorClass(n) { return n >= 0 ? 'green' : 'red'; }
+  const rsi=mkt.rsi,hist=mkt.macd_hist,vr=mkt.volume_ratio;
+  const rEl=document.getElementById('c-rsi');rEl.textContent=rsi?rsi.toFixed(1):'—';rEl.className='ind-val '+(rsi>70?'red':rsi<30?'green':'');
+  const hEl=document.getElementById('c-macd');hEl.textContent=hist!=null?(hist>=0?'+':'')+hist.toFixed(6):'—';hEl.className='ind-val '+(hist>=0?'green':'red');
+  document.getElementById('c-ema20').textContent=mkt.ema20?f4(mkt.ema20):'—';
+  document.getElementById('c-bbpct').textContent=mkt.bb_pct!=null?mkt.bb_pct.toFixed(3):'—';
+  const vEl=document.getElementById('c-vol');vEl.textContent=vr?vr.toFixed(2)+'x':'—';vEl.className='ind-val '+(vr>=1?'green':'muted');
+  document.getElementById('c-atr').textContent=mkt.atr?'$'+mkt.atr.toFixed(4):'—';
+  document.getElementById('c-bbu').textContent=mkt.bb_upper?f4(mkt.bb_upper):'—';
+  document.getElementById('c-bbl').textContent=mkt.bb_lower?f4(mkt.bb_lower):'—';
+  renderTrades('c-trades-list',d.trade_history);
+  renderCfg('c-cfg',cfg,[['Exchange',cfg.exchange?.toUpperCase()],['Symbol',cfg.symbol],['Timeframe',cfg.timeframe],['Mode',cfg.mode?.toUpperCase()],['Per Trade',cfg.trade_amount_usdt?`$${cfg.trade_amount_usdt}`:'—'],['Stop Loss',cfg.stop_loss_pct?(cfg.stop_loss_pct*100).toFixed(1)+'%':'—'],['Take Profit',cfg.take_profit_pct?(cfg.take_profit_pct*100).toFixed(1)+'%':'—']]);
+  renderErrs('c-errors',d.error_log);
+  document.getElementById('c-upd').textContent=d.last_updated?d.last_updated.slice(0,19)+' UTC':'—';
+}
 
-  function render(d) {
-    const running = d.running;
-    const cfg     = d.config || {};
-    const sig     = d.signal || {};
-    const mkt     = d.market || {};
-    const pos     = d.position || {};
-    const risk    = d.risk_stats || {};
-
-    // ── Buttons ──
-    const btnStart = document.getElementById('btn-start');
-    const btnStop  = document.getElementById('btn-stop');
-    if (running) {
-      btnStart.className = 'btn-start btn-disabled';
-      btnStop.className  = 'btn-stop';
-    } else {
-      btnStart.className = 'btn-start';
-      btnStop.className  = 'btn-stop btn-disabled';
-    }
-
-    // ── Top cards ──
-    const price = mkt.close || sig.price || 0;
-    document.getElementById('stat-price').textContent  = price ? '$' + Number(price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4}) : '—';
-    document.getElementById('stat-symbol').textContent = cfg.symbol ? `${cfg.symbol} · ${cfg.exchange?.toUpperCase()} · ${cfg.timeframe}` : '—';
-
-    const bal = cfg.mode === 'paper' ? d.paper_balance : d.balance_usdt;
-    document.getElementById('stat-balance').textContent = bal ? fmt(bal) : '—';
-    const modeTag = cfg.mode === 'live'
-      ? '<span class="tag tag-live">LIVE</span>'
-      : '<span class="tag tag-paper">PAPER</span>';
-    document.getElementById('stat-mode').innerHTML = cfg.mode ? modeTag : '—';
-
-    const pnl = d.daily_pnl || 0;
-    const pnlEl = document.getElementById('stat-pnl');
-    pnlEl.textContent  = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
-    pnlEl.className    = 'card-value ' + colorClass(pnl);
-    document.getElementById('stat-trades').textContent = `${risk.trade_count_today || 0} trades today`;
-
-    const statusEl = document.getElementById('stat-status');
-    if (risk.kill_switch) {
-      statusEl.textContent  = '🚫 KILL SWITCH';
-      statusEl.className    = 'card-value red';
-    } else if (running) {
-      statusEl.innerHTML    = '<span class="dot green" style="vertical-align:middle;margin-right:6px"></span>Running';
-      statusEl.className    = 'card-value green';
-    } else {
-      statusEl.textContent  = '⏹ Stopped';
-      statusEl.className    = 'card-value muted';
-    }
-    document.getElementById('stat-iter').textContent = `Iteration ${d.iteration || 0}`;
-
-    // ── Signal banner ──
-    const sv   = sig.signal || 'HOLD';
-    const conf = sig.confidence || 0;
-    const sigEl = document.getElementById('sig-value');
-    sigEl.textContent = sv;
-    sigEl.className   = 'signal-value ' + (sv === 'BUY' ? 'green' : sv === 'SELL' ? 'red' : 'muted');
-    document.getElementById('sig-reason').textContent = sig.reason || '—';
-    document.getElementById('conf-val').textContent   = conf + '%';
-    const bar = document.getElementById('conf-bar');
-    bar.style.width      = conf + '%';
-    bar.style.background = sv === 'BUY' ? 'var(--green)' : sv === 'SELL' ? 'var(--red)' : 'var(--muted)';
-
-    // ── Position ──
-    const inPos = pos.in_position;
-    document.getElementById('pos-none').style.display = inPos ? 'none' : 'block';
-    document.getElementById('pos-open').style.display = inPos ? 'block' : 'none';
-    if (inPos) {
-      document.getElementById('pos-entry').textContent = fmt(pos.entry_price, 4);
-      document.getElementById('pos-cur').textContent   = fmt(pos.current_price, 4);
-      document.getElementById('pos-amt').textContent   = Number(pos.amount_base).toFixed(6) + ' ' + (cfg.symbol || '').split('/')[0];
-      document.getElementById('pos-val').textContent   = fmt(pos.amount_usdt, 2);
-      document.getElementById('pos-sl').textContent    = fmt(pos.stop_loss, 4);
-      document.getElementById('pos-tp').textContent    = fmt(pos.take_profit, 4);
-      const upnl    = pos.unrealized_pnl || 0;
-      const upnlPct = pos.pnl_pct || 0;
-      const pnlEl2  = document.getElementById('pos-pnl');
-      pnlEl2.textContent = `${upnl >= 0 ? '+$' : '-$'}${Math.abs(upnl).toFixed(4)} (${fmtPct(upnlPct)})`;
-      pnlEl2.className   = 'val bold ' + colorClass(upnl);
-    }
-
-    // ── Indicators ──
-    const rsi     = mkt.rsi;
-    const rsiEl   = document.getElementById('ind-rsi');
-    rsiEl.textContent = rsi ? rsi.toFixed(1) : '—';
-    rsiEl.className   = 'ind-val ' + (rsi > 70 ? 'red' : rsi < 30 ? 'green' : '');
-
-    const hist    = mkt.macd_hist;
-    const histEl  = document.getElementById('ind-macd');
-    histEl.textContent = hist !== undefined ? (hist >= 0 ? '+' : '') + hist.toFixed(6) : '—';
-    histEl.className   = 'ind-val ' + (hist >= 0 ? 'green' : 'red');
-
-    document.getElementById('ind-ema20').textContent  = mkt.ema20  ? fmt(mkt.ema20,  2) : '—';
-    document.getElementById('ind-bbpct').textContent  = mkt.bb_pct !== undefined ? mkt.bb_pct.toFixed(3) : '—';
-
-    const vr    = mkt.volume_ratio;
-    const vrEl  = document.getElementById('ind-vol');
-    vrEl.textContent = vr ? vr.toFixed(2) + 'x' : '—';
-    vrEl.className   = 'ind-val ' + (vr >= 1 ? 'green' : 'muted');
-
-    document.getElementById('ind-atr').textContent   = mkt.atr    ? fmt(mkt.atr,    4) : '—';
-    document.getElementById('ind-bbu').textContent   = mkt.bb_upper ? fmt(mkt.bb_upper, 2) : '—';
-    document.getElementById('ind-bbl').textContent   = mkt.bb_lower ? fmt(mkt.bb_lower, 2) : '—';
-
-    // ── Trade history ──
-    const trades  = (d.trade_history || []).slice().reverse();
-    const tradeEl = document.getElementById('trade-list');
-    if (!trades.length) {
-      tradeEl.innerHTML = '<div class="empty">No trades yet</div>';
-    } else {
-      tradeEl.innerHTML = trades.map(t => {
-        const pnlStr = t.pnl !== undefined
-          ? `<span class="trade-pnl ${t.pnl >= 0 ? 'pos' : 'neg'}">${t.pnl >= 0 ? '+$' : '-$'}${Math.abs(t.pnl).toFixed(2)}</span>`
-          : '<span class="muted">—</span>';
-        const modeTag = t.paper ? '<span class="tag tag-paper tag-paper-sm">P</span>' : '<span class="tag tag-live tag-live-sm">L</span>';
-        return `<div class="trade-item">
-          <span class="trade-side ${t.side.toLowerCase()}">${t.side}</span>
-          <span>$${Number(t.price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4})}</span>
-          <span class="muted">${Number(t.amount_base).toFixed(6)}</span>
-          <span class="muted" style="font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${(t.reason||'').slice(0,40)}</span>
-          ${pnlStr}
-        </div>`;
-      }).join('');
-    }
-
-    // ── Config ──
-    const cfgEl = document.getElementById('cfg-block');
-    if (Object.keys(cfg).length) {
-      const rows = [
-        ['Exchange',    cfg.exchange?.toUpperCase()],
-        ['Symbol',      cfg.symbol],
-        ['Timeframe',   cfg.timeframe],
-        ['Mode',        cfg.mode?.toUpperCase()],
-        ['Per Trade',   cfg.trade_amount_usdt ? `$${cfg.trade_amount_usdt}` : '—'],
-        ['Stop Loss',   cfg.stop_loss_pct   ? (cfg.stop_loss_pct   * 100).toFixed(1) + '%' : '—'],
-        ['Take Profit', cfg.take_profit_pct ? (cfg.take_profit_pct * 100).toFixed(1) + '%' : '—'],
-        ['Loop Interval', cfg.loop_interval_s ? cfg.loop_interval_s + 's' : '—'],
-      ];
-      cfgEl.innerHTML = rows.map(([k,v]) =>
-        `<div class="cfg-row"><span class="cfg-key">${k}</span><span class="cfg-val">${v||'—'}</span></div>`
-      ).join('');
-    } else {
-      cfgEl.innerHTML = '<div class="empty">Start the agent to see config</div>';
-    }
-
-    // ── Error log ──
-    const errs  = (d.error_log || []).slice().reverse();
-    const errEl = document.getElementById('err-list');
-    if (!errs.length) {
-      errEl.innerHTML = '<div class="empty">No errors</div>';
-    } else {
-      errEl.innerHTML = errs.map(e =>
-        `<div class="err-item"><div class="err-time">${e.time?.slice(0,19) || ''}</div>${e.error}</div>`
-      ).join('');
-    }
-
-    // ── Footer ──
-    document.getElementById('last-upd').textContent = d.last_updated ? d.last_updated.slice(0,19) + ' UTC' : '—';
+function renderF(d){
+  const running=d.running,cfg=d.config||{},sig=d.signal||{};
+  const mkt=d.market||{},pos=d.position||{},acc=d.account||{},risk=d.risk_stats||{};
+  document.getElementById('tdot-f').className='tdot'+(running?' rf':'');
+  showRunning('f',running);
+  showErrBanner('f',running,d.error_log);
+  if(running){
+    const l=document.getElementById('f-run-lbl');
+    l.innerHTML=`<span class="tag ${cfg.mode==='live'?'tag-live':'tag-paper'}">${(cfg.mode||'').toUpperCase()}</span> &nbsp;Exness · ${cfg.symbol||''} · ${cfg.timeframe||''}`;
   }
+  const price=mkt.close||sig.price||0;
+  document.getElementById('f-price').textContent  =price?Number(price).toFixed(5):'—';
+  document.getElementById('f-sym-lbl').textContent=cfg.symbol?`${cfg.symbol} · Exness · ${cfg.timeframe}`:'—';
+  document.getElementById('f-balance').textContent=acc.balance?f2(acc.balance):'—';
+  document.getElementById('f-equity').textContent =acc.equity?`Equity: ${f2(acc.equity)}`:'Equity: —';
+  const pnl=d.daily_pnl||0;
+  const pEl=document.getElementById('f-pnl');
+  pEl.textContent=(pnl>=0?'+$':'-$')+Math.abs(pnl).toFixed(2);pEl.className='cval '+cc(pnl);
+  document.getElementById('f-trades-lbl').textContent=`${risk.trade_count_today||0} trades today`;
+  renderSt('f',running,risk,d.iteration);renderSig('f',sig);
+  const inPos=pos.in_position;
+  document.getElementById('f-pos-none').style.display=inPos?'none':'block';
+  document.getElementById('f-pos-open').style.display=inPos?'block':'none';
+  if(inPos){
+    const sEl=document.getElementById('f-p-side');sEl.textContent=pos.side||'—';sEl.className='val bold '+(pos.side==='LONG'?'green':'red');
+    document.getElementById('f-p-lot').textContent  =pos.lot||'—';
+    document.getElementById('f-p-entry').textContent=f5(pos.entry_price);
+    document.getElementById('f-p-cur').textContent  =f5(pos.current_price);
+    document.getElementById('f-p-sl').textContent   =f5(pos.sl);
+    document.getElementById('f-p-tp').textContent   =f5(pos.tp);
+    const u=pos.unrealized_pnl||0;
+    const uEl=document.getElementById('f-p-pnl');
+    uEl.textContent=(u>=0?'+$':'-$')+Math.abs(u).toFixed(2);uEl.className='val bold '+cc(u);
+  }
+  const rsi=mkt.rsi,hist=mkt.macd_hist,sk=mkt.stoch_k,vr=mkt.vol_ratio;
+  const rEl=document.getElementById('f-rsi');rEl.textContent=rsi?rsi.toFixed(1):'—';rEl.className='ind-val '+(rsi>70?'red':rsi<30?'green':'');
+  const hEl=document.getElementById('f-macd');hEl.textContent=hist!=null?(hist>=0?'+':'')+hist.toFixed(6):'—';hEl.className='ind-val '+(hist>=0?'green':'red');
+  document.getElementById('f-ema20').textContent =mkt.ema20 ?f5(mkt.ema20) :'—';
+  document.getElementById('f-ema200').textContent=mkt.ema200?f5(mkt.ema200):'—';
+  const sEl2=document.getElementById('f-stoch');sEl2.textContent=sk!=null?sk.toFixed(1):'—';sEl2.className='ind-val '+(sk>80?'red':sk<20?'green':'');
+  document.getElementById('f-atr').textContent  =mkt.atr   ?mkt.atr.toFixed(6)   :'—';
+  document.getElementById('f-bbpct').textContent=mkt.bb_pct?mkt.bb_pct.toFixed(3):'—';
+  const vEl=document.getElementById('f-vol');vEl.textContent=vr?vr.toFixed(2)+'x':'—';vEl.className='ind-val '+(vr>=1?'green':'muted');
+  renderTrades('f-trades-list',d.trade_history);
+  renderCfg('f-cfg',cfg,[['Broker','Exness'],['Server',cfg.server],['Symbol',cfg.symbol],['Timeframe',cfg.timeframe],['Mode',cfg.mode?.toUpperCase()],['Lot Size',cfg.lot_size],['SL (pips)',cfg.stop_loss_pips],['TP (pips)',cfg.take_profit_pips]]);
+  renderErrs('f-errors',d.error_log);
+  document.getElementById('f-upd').textContent=d.last_updated?d.last_updated.slice(0,19)+' UTC':'—';
+}
 
-  // ── Init ────────────────────────────────────────────────────────────────────
-  connectWS();
+setInterval(async()=>{
+  try{
+    if(wsC?.readyState!==WebSocket.OPEN){const r=await fetch('/api/crypto/status');if(r.ok)renderC(await r.json());}
+    if(wsF?.readyState!==WebSocket.OPEN){const r=await fetch('/api/forex/status');if(r.ok)renderF(await r.json());}
+  }catch(_){}
+},5000);
 
-  // Also poll REST as fallback
-  setInterval(async () => {
-    if (ws && ws.readyState === WebSocket.OPEN) return;
-    try {
-      const r = await fetch('/api/status');
-      if (r.ok) render(await r.json());
-    } catch(e) {}
-  }, 5000);
+connectC();connectF();
 </script>
 </body>
 </html>
