@@ -205,10 +205,9 @@ def run():
     signal_engine = SignalEngine()
 
     risk_manager = RiskManager(
-        stop_loss_pct=config.stop_loss_pct,
-        take_profit_pct=config.take_profit_pct,
         max_daily_loss_pct=config.max_daily_loss_pct,
         trade_amount_usdt=config.trade_amount_usdt,
+        risk_per_trade_pct=getattr(config, 'risk_per_trade_pct', 0.02),
     )
 
     order_engine = OrderEngine(

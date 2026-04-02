@@ -32,8 +32,7 @@ class CryptoStartRequest(BaseModel):
     symbol: str = "BTC/USDT"
     timeframe: str = "5m"
     trade_amount_usdt: float = 50.0
-    stop_loss_pct: float = 0.02
-    take_profit_pct: float = 0.04
+    risk_per_trade_pct: float = 0.02
     max_daily_loss_pct: float = 0.05
     trading_mode: str = "paper"
     telegram_token: str = ""
@@ -51,6 +50,7 @@ class ForexStartRequest(BaseModel):
     max_daily_loss: float = 20.0
     max_spread_points: int = 20
     trading_mode: str = "paper"
+    starting_balance: float = 10000.0
     telegram_token: str = ""
     telegram_chat_id: str = ""
 
@@ -70,14 +70,46 @@ class AgentState:
         self.paper_balance   = 1000.0
         self.daily_pnl       = 0.0
         self.trade_history   = []
+        self.pnl_history     = []  # [{time, pnl, cumulative, balance, type}]
+        self.total_pnl       = 0.0
+        self.win_count       = 0
+        self.loss_count      = 0
         self.risk_stats      = {}
         self.error_log       = []
         self.iteration       = 0
         self.last_updated    = None
         self.config_snapshot = {}
 
+    def record_pnl(self, pnl: float, balance: float, reason: str = ""):
+        """Record a P&L event for history tracking."""
+        self.total_pnl += pnl
+        if pnl >= 0:
+            self.win_count += 1
+        else:
+            self.loss_count += 1
+        self.pnl_history.append({
+            "time": datetime.utcnow().isoformat(),
+            "pnl": round(pnl, 4),
+            "cumulative": round(self.total_pnl, 4),
+            "balance": round(balance, 4),
+            "type": "WIN" if pnl >= 0 else "LOSS",
+            "reason": reason[:60],
+        })
+
     def to_dict(self):
-        return {
+        import math
+        def _clean(obj):
+            if isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return 0.0
+                return obj
+            if isinstance(obj, dict):
+                return {k: _clean(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_clean(i) for i in obj]
+            return obj
+        total_trades = self.win_count + self.loss_count
+        return _clean({
             "agent_type":    self.agent_type,
             "running":       self.running,
             "iteration":     self.iteration,
@@ -89,11 +121,16 @@ class AgentState:
             "balance_usdt":  round(self.balance_usdt, 4),
             "paper_balance": round(self.paper_balance, 4),
             "daily_pnl":     round(self.daily_pnl, 2),
+            "total_pnl":     round(self.total_pnl, 4),
+            "win_count":     self.win_count,
+            "loss_count":    self.loss_count,
+            "win_rate":      round((self.win_count / total_trades * 100) if total_trades > 0 else 0, 1),
             "trade_history": self.trade_history[-50:],
+            "pnl_history":   self.pnl_history[-100:],
             "risk_stats":    self.risk_stats,
             "error_log":     self.error_log[-20:],
             "config":        self.config_snapshot,
-        }
+        })
 
 crypto_state = AgentState("crypto")
 forex_state  = AgentState("forex")
@@ -134,7 +171,7 @@ def _run_crypto(stop_event, req: CryptoStartRequest):
         "1h":3600,"2h":7200,"4h":14400,"6h":21600,"8h":28800,
         "12h":43200,"1d":86400
     }
-    loop_secs = TIMEFRAME_SECONDS.get(req.timeframe, 300)
+    loop_secs = 2  # refresh every 2 seconds
 
     crypto_state.config_snapshot = {
         "type": "crypto",
@@ -143,8 +180,9 @@ def _run_crypto(stop_event, req: CryptoStartRequest):
         "timeframe": req.timeframe,
         "mode": req.trading_mode,
         "trade_amount_usdt": req.trade_amount_usdt,
-        "stop_loss_pct": req.stop_loss_pct,
-        "take_profit_pct": req.take_profit_pct,
+        "risk_per_trade_pct": req.risk_per_trade_pct,
+        "max_daily_loss_pct": req.max_daily_loss_pct,
+        "sl_tp": "Dynamic (ATR-based)",
         "loop_interval_s": loop_secs,
     }
 
@@ -163,8 +201,8 @@ def _run_crypto(stop_event, req: CryptoStartRequest):
             connector.load_markets(req.symbol)
         market  = MarketData(connector, req.symbol, req.timeframe, 200)
         engine  = SignalEngine()
-        risk    = RiskManager(req.stop_loss_pct, req.take_profit_pct,
-                              req.max_daily_loss_pct, req.trade_amount_usdt)
+        risk    = RiskManager(req.max_daily_loss_pct, req.trade_amount_usdt,
+                              req.risk_per_trade_pct)
         orders  = OrderEngine(connector, risk, notifier, req.symbol, is_paper)
         notifier.send_startup(req.symbol, req.exchange, req.timeframe,
                               req.trading_mode, req.trade_amount_usdt)
@@ -172,6 +210,8 @@ def _run_crypto(stop_event, req: CryptoStartRequest):
         crypto_state.error_log.append({"time": str(datetime.utcnow()), "error": f"Init failed: {e}"})
         crypto_state.running = False
         return
+
+    prev_trade_count = 0
 
     while not stop_event.is_set():
         crypto_state.iteration += 1
@@ -208,11 +248,20 @@ def _run_crypto(stop_event, req: CryptoStartRequest):
                     "confidence": 0, "price": current_price,
                     "rsi": summary.get("rsi", 0), "macd_hist": summary.get("macd_hist", 0), "indicators": {}}
 
+            # Track PnL history - detect new SELL trades (closed positions)
+            current_trades = orders.get_trade_history()
+            if len(current_trades) > prev_trade_count:
+                for t in current_trades[prev_trade_count:]:
+                    if t.get("side") == "SELL" and "pnl" in t:
+                        bal = connector.get_paper_balance() if is_paper else connector.get_free_usdt()
+                        crypto_state.record_pnl(t["pnl"], bal, t.get("reason", ""))
+                prev_trade_count = len(current_trades)
+
             crypto_state.balance_usdt    = balance
             crypto_state.paper_balance   = connector.get_paper_balance() if is_paper else balance
             crypto_state.daily_pnl       = risk.daily_pnl
             crypto_state.position_status = orders.get_position_status(current_price)
-            crypto_state.trade_history   = orders.get_trade_history()
+            crypto_state.trade_history   = current_trades
             crypto_state.risk_stats      = risk.get_stats()
             crypto_state.last_updated    = datetime.utcnow().isoformat()
 
@@ -246,7 +295,7 @@ TIMEFRAME_SECS_FOREX = {
 }
 
 def _run_forex(stop_event, req: ForexStartRequest):
-    loop_secs = TIMEFRAME_SECS_FOREX.get(req.timeframe, 300)
+    loop_secs = 2  # refresh every 2 seconds
     tf_const  = TIMEFRAME_MAP.get(req.timeframe, 5)
 
     forex_state.config_snapshot = {
@@ -271,7 +320,7 @@ def _run_forex(stop_event, req: ForexStartRequest):
 
         is_paper  = req.trading_mode == "paper"
         notifier  = notif_mod.TelegramNotifier(req.telegram_token, req.telegram_chat_id)
-        connector = mt5_mod.MT5Connector(req.mt5_login, req.mt5_password, req.mt5_server, is_paper)
+        connector = mt5_mod.MT5Connector(req.mt5_login, req.mt5_password, req.mt5_server, is_paper, req.starting_balance)
         market    = data_mod.ForexMarketData(connector, req.symbol, tf_const, 200)
         engine    = sig_mod.ForexSignalEngine()
         risk      = risk_mod.ForexRiskManager(req.stop_loss_pips, req.take_profit_pips,
@@ -294,6 +343,7 @@ def _run_forex(stop_event, req: ForexStartRequest):
 
             tick          = connector.get_tick(req.symbol)
             current_price = tick.get("last") or summary["close"]
+            forex_state.market_summary["price"] = current_price
 
             if orders.is_in_position:
                 orders.monitor_position(current_price)
@@ -436,7 +486,7 @@ async def ws_forex(ws: WebSocket):
 
 async def _broadcaster(manager: WSManager, state: AgentState):
     while True:
-        await asyncio.sleep(3)
+        await asyncio.sleep(2)
         if manager.active:
             await manager.broadcast(state.to_dict())
 

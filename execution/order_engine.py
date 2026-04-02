@@ -1,6 +1,6 @@
 """
-execution/order_engine.py - Executes and monitors trades automatically.
-Coordinates between the exchange connector, risk manager, and notifier.
+execution/order_engine.py - Executes and monitors trades with dynamic risk management.
+Supports ATR-based trailing stops and dynamic SL/TP from signal engine.
 """
 from __future__ import annotations
 import logging
@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 class OrderEngine:
     """
     Handles the full lifecycle of a trade:
-        open → monitor (SL/TP) → close
-    No manual intervention required.
+        open -> monitor (trailing SL / TP) -> close
     """
 
     def __init__(self, connector, risk_manager, notifier, symbol: str, paper_mode: bool = True):
@@ -22,11 +21,11 @@ class OrderEngine:
         self.notifier     = notifier
         self.symbol       = symbol
         self.paper_mode   = paper_mode
-        self._trade_log   = []          # in-memory trade history
+        self._trade_log   = []
 
-    # -------------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
     # Public API
-    # -------------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
 
     @property
     def is_in_position(self) -> bool:
@@ -34,26 +33,26 @@ class OrderEngine:
 
     def execute_buy(self, signal: dict) -> bool:
         """
-        Executes a BUY order.
-        1. Checks balance and risk approval
-        2. Places market buy
-        3. Records position in risk manager
-        4. Sends notification
-
-        Returns True if order was placed, False otherwise.
+        Executes a BUY order with dynamic SL/TP from signal engine.
         """
-        free_usdt    = self.connector.get_free_usdt()
+        free_usdt     = self.connector.get_free_usdt()
         current_price = signal["price"]
+        risk_params   = signal.get("risk_params", {})
 
         approved, reason = self.risk.approve_trade("BUY", free_usdt, current_price)
         if not approved:
             logger.info(f"Trade not approved: {reason}")
             return False
 
-        trade_usdt = self.risk.calculate_trade_usdt(free_usdt)
+        # ATR-aware position sizing
+        atr = risk_params.get("atr", 0)
+        sl_mult = risk_params.get("sl_atr_mult", 2.0)
+        trade_usdt = self.risk.calculate_trade_usdt(free_usdt, atr, current_price, sl_mult)
+
         logger.info(
             f"Executing BUY | Symbol: {self.symbol} | "
-            f"Amount: ${trade_usdt:.2f} USDT | Price: ${current_price:.4f}"
+            f"Amount: ${trade_usdt:.2f} USDT | Price: ${current_price:.4f} | "
+            f"ATR: ${atr:.4f}"
         )
 
         try:
@@ -67,10 +66,12 @@ class OrderEngine:
         amount_base  = float(order.get("amount") or (trade_usdt / entry_price))
         amount_spent = float(order.get("cost") or trade_usdt)
 
+        # Open position with dynamic ATR-based SL/TP
         position = self.risk.open_position_record(
             entry_price=entry_price,
             amount_base=amount_base,
             amount_usdt=amount_spent,
+            risk_params=risk_params,
             order_id=order.get("id"),
         )
 
@@ -90,15 +91,7 @@ class OrderEngine:
         return True
 
     def execute_sell(self, reason: str, current_price: float) -> bool:
-        """
-        Executes a SELL order to close the current position.
-        1. Gets position info from risk manager
-        2. Places market sell
-        3. Calculates realized P&L
-        4. Sends notification
-
-        Returns True if order was placed, False otherwise.
-        """
+        """Executes a SELL order to close the current position."""
         if not self.is_in_position:
             logger.warning("execute_sell called but no open position found.")
             return False
@@ -139,31 +132,43 @@ class OrderEngine:
 
     def monitor_position(self, current_price: float) -> str | None:
         """
-        Checks if the open position has hit stop-loss or take-profit.
-        Executes sell automatically if either is triggered.
-
-        Returns the exit reason string, or None if still holding.
+        Monitor open position with trailing stop support.
+        1. Update trailing stop
+        2. Check if SL/TP hit
+        3. Auto-execute sell if triggered
         """
         if not self.is_in_position:
             return None
 
         position = self.risk.open_position
-        pnl      = position.unrealized_pnl(current_price)
-        pnl_pct  = position.pnl_pct(current_price)
+
+        # Update trailing stop before checking SL
+        self.risk.update_trailing_stop(current_price)
+
+        pnl     = position.unrealized_pnl(current_price)
+        pnl_pct = position.pnl_pct(current_price)
 
         logger.debug(
             f"Position monitor | Price: ${current_price:.4f} | "
             f"SL: ${position.stop_loss:.4f} | TP: ${position.take_profit:.4f} | "
-            f"Unrealized P&L: ${pnl:+.2f} ({pnl_pct:+.2f}%)"
+            f"Trail: {'ON' if position.trailing_active else 'OFF'} | "
+            f"P&L: ${pnl:+.2f} ({pnl_pct:+.2f}%)"
         )
 
         if self.risk.check_stop_loss(current_price):
-            reason = f"Stop-loss triggered at ${current_price:.4f} (SL=${position.stop_loss:.4f})"
+            sl_type = "Trailing SL" if position.trailing_active else "Stop-loss"
+            reason = (
+                f"{sl_type} at ${current_price:.4f} "
+                f"(SL=${position.stop_loss:.4f}, entry=${position.entry_price:.4f})"
+            )
             self.execute_sell(reason, current_price)
             return reason
 
         if self.risk.check_take_profit(current_price):
-            reason = f"Take-profit triggered at ${current_price:.4f} (TP=${position.take_profit:.4f})"
+            reason = (
+                f"Take-profit at ${current_price:.4f} "
+                f"(TP=${position.take_profit:.4f}, entry=${position.entry_price:.4f})"
+            )
             self.execute_sell(reason, current_price)
             return reason
 
@@ -177,26 +182,31 @@ class OrderEngine:
         pos = self.risk.open_position
         pnl = pos.unrealized_pnl(current_price)
         return {
-            "in_position":  True,
-            "symbol":       self.symbol,
-            "entry_price":  pos.entry_price,
-            "current_price": current_price,
-            "amount_base":  pos.amount_base,
-            "amount_usdt":  pos.amount_usdt,
-            "stop_loss":    pos.stop_loss,
-            "take_profit":  pos.take_profit,
+            "in_position":    True,
+            "symbol":         self.symbol,
+            "entry_price":    pos.entry_price,
+            "current_price":  current_price,
+            "amount_base":    pos.amount_base,
+            "amount_usdt":    pos.amount_usdt,
+            "stop_loss":      pos.stop_loss,
+            "take_profit":    pos.take_profit,
+            "tp2":            pos.tp2,
+            "tp3":            pos.tp3,
             "unrealized_pnl": round(pnl, 4),
-            "pnl_pct":      round(pos.pnl_pct(current_price), 2),
-            "opened_at":    str(pos.opened_at),
+            "pnl_pct":        round(pos.pnl_pct(current_price), 2),
+            "trailing_active": pos.trailing_active,
+            "breakeven_hit":  pos.breakeven_hit,
+            "highest_price":  pos.highest_price,
+            "atr":            pos.atr,
+            "opened_at":      str(pos.opened_at),
         }
 
     def get_trade_history(self) -> list:
-        """Returns a copy of the in-memory trade log."""
         return list(self._trade_log)
 
-    # -------------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
     # Internal
-    # -------------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
 
     def _log_trade(self, side: str, price: float, amount_base: float,
                    amount_usdt: float, reason: str, pnl: float = None):
